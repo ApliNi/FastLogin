@@ -81,6 +81,38 @@ public abstract class FloodgateManagement<P extends C, C, L extends LoginSession
         }
 
         profile = core.getStorage().loadProfile(username);
+
+        if (profile.isSaved()) {
+            if (!profile.isFloodgateMigrated()) {
+                if (isLinked) {
+                    profile.setFloodgate(FloodgateState.LINKED);
+                    core.getPlugin().getLog().info(
+                            "Player {} will be migrated to the v2 database schema as a linked Floodgate user",
+                            username);
+                } else {
+                    profile.setFloodgate(FloodgateState.TRUE);
+                    core.getPlugin().getLog().info(
+                            "Player {} will be migrated to the v2 database schema as a Floodgate user", username);
+                }
+            } else if (profile.getFloodgate() == FloodgateState.TRUE && isLinked) {
+                core.getPlugin().getLog()
+                        .info("Player {} is already stored by FastLogin as a non-linked Bedrock Edition player",
+                                username);
+                return;
+            } else if (profile.getFloodgate() == FloodgateState.FALSE && isLinked) {
+                profile.setFloodgate(FloodgateState.LINKED);
+                core.getPlugin().getLog().info(
+                        "Player {} will be changed from a Java player to a linked Floodgate player",
+                        username);
+            }
+        } else {
+            if (isLinked) {
+                profile.setFloodgate(FloodgateState.LINKED);
+            } else {
+                profile.setFloodgate(FloodgateState.TRUE);
+            }
+        }
+
         AuthPlugin<P> authPlugin = core.getAuthPluginHook();
 
         try {
@@ -120,13 +152,10 @@ public abstract class FloodgateManagement<P extends C, C, L extends LoginSession
             }
         }
 
-        if (!isRegistered && !isAutoAuthAllowed(autoRegisterFloodgate)) {
+        if ((!isRegistered && !isAutoAuthAllowed(autoRegisterFloodgate))
+                || (profile.getFloodgate() == FloodgateState.LINKED && !isLinked)
+                || (profile.getFloodgate() == FloodgateState.TRUE && isLinked)) {
             return;
-        }
-
-        //logging in from bedrock for a second time threw an error with UUID
-        if (profile == null) {
-            profile = new StoredProfile(getUUID(player), username, true, getAddress(player).toString());
         }
 
         //start Bukkit/Bungee specific tasks
