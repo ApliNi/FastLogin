@@ -26,9 +26,11 @@
 package com.github.games647.fastlogin.core.shared;
 
 import com.github.games647.fastlogin.core.hooks.AuthPlugin;
+import com.github.games647.fastlogin.core.hooks.bedrock.FloodgateService;
 import com.github.games647.fastlogin.core.shared.event.FastLoginAutoLoginEvent;
 import com.github.games647.fastlogin.core.storage.SQLStorage;
 import com.github.games647.fastlogin.core.storage.StoredProfile;
+import org.geysermc.floodgate.api.FloodgateApi;
 
 public abstract class ForceLoginManagement<P extends C, C, L extends LoginSession, T extends PlatformPlugin<C>>
         implements Runnable {
@@ -37,10 +39,14 @@ public abstract class ForceLoginManagement<P extends C, C, L extends LoginSessio
     protected final P player;
     protected final L session;
 
+    private final FloodgateService floodgateService;
+
     public ForceLoginManagement(FastLoginCore<P, C, T> core, P player, L session) {
         this.core = core;
         this.player = player;
         this.session = session;
+
+        floodgateService = new FloodgateService(FloodgateApi.getInstance(), core);
     }
 
     @Override
@@ -80,9 +86,12 @@ public abstract class ForceLoginManagement<P extends C, C, L extends LoginSessio
                     if (success) {
                         //update only on success to prevent corrupt data
                         if (playerProfile != null) {
-                            playerProfile.setId(session.getUuid());
-                            playerProfile.setPremium(true);
-                            storage.save(playerProfile);
+                            // Premium is not modified if is bedrock connection
+                            if (floodgateService == null || !floodgateService.isBedrockConnection(playerName)) {
+                                playerProfile.setId(session.getUuid());
+                                playerProfile.setPremium(true);
+                                storage.save(playerProfile);
+                            }
                         }
 
                         onForceActionSuccess(session);
